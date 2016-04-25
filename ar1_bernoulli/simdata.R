@@ -1,6 +1,6 @@
 ## Simulate data
 set.seed(123)
-n <- 10000
+n <- 10
 sigma <- .3
 phi <- .8
 simdata <- function(){
