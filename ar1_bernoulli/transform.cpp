@@ -10,7 +10,7 @@ Type mydbinom(Type k, Type size, Type prob, int give_log=0)
 
 
 template<class Type>
-struct gauss_bernulli {
+struct gauss_bernoulli {
   typedef Type scalartype;
   Type mu, sigma, x;
   Type operator()(Type u){
@@ -75,8 +75,8 @@ template<class Type>
 vector<Type> my_transform(vector<Type> parms){
   Type u=parms[0], mu = parms[1], sigma = parms[2], x = parms[3], f=0;
   vector<Type> ans(2);
-  gauss_bernulli<Type> gb = {mu, sigma, x};
-  quantile_function<gauss_bernulli<Type> > qf = {gb};
+  gauss_bernoulli<Type> gb = {mu, sigma, x};
+  quantile_function<gauss_bernoulli<Type> > qf = {gb};
   f -= dnorm(u, Type(0.0), Type(1.0), true);
   u = pnorm(u, Type(0.0), Type(1.0));
   u = qf(u);
@@ -91,7 +91,6 @@ void my_transform(Type &u, Type mu, Type sigma, Type x, Type &f, Type uaux, Type
   parms << u, mu, sigma, x;
   vector<Type> ans = my_transform(parms);
   f -= dnorm(uaux, ans(0), tiny, true); // Softlink 'copy'
-  u = uaux;
   f += ans(1);
 }
 
@@ -102,22 +101,51 @@ Type objective_function<Type>::operator() ()
   DATA_VECTOR(obs);
   PARAMETER(phi);
   PARAMETER(logSigma);
-  PARAMETER_VECTOR(u);
-  PARAMETER_VECTOR(uaux); // Plays the role of the states
+  PARAMETER_VECTOR(u);     // Actual states
+  PARAMETER_VECTOR(uaux);  // Transformed states
   DATA_SCALAR(tiny);
   using namespace density;
-  Type sigma= exp(logSigma);
-
+  Type sigma = exp(logSigma);
+  int n = obs.size();
   Type f = 0;
 
-  if(do_transform){
-    for(int i=0;i<obs.size();i++){
-      if(i==0){
-	my_transform(u(i), Type(0), sigma, obs(i), f, uaux(i), tiny);
+  for(int i=0; i<n; i++){
+    switch (do_transform) {
+    case 0: // No transform
+      f -= dnorm(uaux(i), Type(0), Type(1), true);
+      break;
+    case 1: // Forward recursive transform
+      if(i==0) {
+	my_transform(uaux(i), Type(0), sigma, obs(i), f, u(i), tiny);
       } else {
-	my_transform(u(i), phi*u(i-1), sigma * sqrt(1.0 - phi*phi), obs(i), f, uaux(i), tiny);
+	my_transform(uaux(i), phi*u(i-1), sigma * sqrt(1.0 - phi*phi),
+		     obs(i), f, u(i), tiny);
       }
-
+      break;
+    case 2: // Full conditionals
+      if(i==0) {
+	my_transform(uaux(i),
+		     phi*u(i+1),
+		     sigma * sqrt(1.0 - phi*phi),
+		     obs(i), f, u(i), tiny);
+      }
+      else if
+	(i==n-1) {
+	my_transform(uaux(i),
+		     phi*u(i-1),
+		     sigma * sqrt(1.0 - phi*phi),
+		     obs(i), f, u(i), tiny);
+      }
+      else {
+	my_transform(uaux(i),
+		     phi / (Type(1)+phi*phi) * (u(i-1) + u(i+1)),
+		     sigma * sqrt((1.0 - phi*phi) / (1.0 + phi*phi)),
+		     obs(i), f, u(i), tiny);
+      }
+      break;
+    default:
+      error("Invalid do_transform");
+      break;
     }
   }
 
