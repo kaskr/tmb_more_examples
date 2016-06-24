@@ -1,8 +1,5 @@
 library(TMB)
-compile("lgcp_aggreg.cpp","-O0 -g")
-
-## nobs <- 100
-## ngroup <- 3
+compile("lgcp_aggreg.cpp")
 
 nobs <- 1
 ngroup <- 2
@@ -24,7 +21,7 @@ N <- 2*(exp(mu+1)+Q)
 
 data <- list(N=N)
 
-dyn.load("lgcp_aggreg.so")
+dyn.load(dynlib("lgcp_aggreg"))
 obj <- MakeADFun(data,parameters,random="x",map=map)
 obj$env$random.start <- expression(c(par.fixed[1],1))
 
@@ -52,11 +49,9 @@ newmyf <- function(mu){
     title(txt)
     print(txt)
 }
-pdf("surface30.pdf")
+pdf("surface.pdf")
 gr <- seq(-.1,.1,by=0.01) + -2
 for(mu in gr){
     newmyf(mu)
 }
 dev.off()
-
-
